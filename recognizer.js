@@ -89,16 +89,15 @@ export async function load(foods, cbIn = null) {
     };
     await loadVision(cb);
 
-    // 텍스트 임베딩: 폰 캐시 → 미리 계산된 파일 → 직접 계산 순
+    // 음식 임베딩: 배포된 파일(사진으로 보강된 최신본) → 폰 캐시 → 직접 계산 순
     const hash = hashFoods(foods);
     const key = 'emb:' + hash;
-    let cached = await kvGet(key);
-    if (!cached) {
-      try {
-        const r = await fetch('food-emb.json', { cache: 'no-cache' });
-        if (r.ok) { const j = await r.json(); if (j.hash === hash) cached = j.emb || decodeQ(j); }
-      } catch {}
-    }
+    let cached = null;
+    try {
+      const r = await fetch('food-emb.json', { cache: 'no-cache' });
+      if (r.ok) { const j = await r.json(); if (j.hash === hash) cached = j.emb || decodeQ(j); }
+    } catch {}
+    if (!cached) cached = await kvGet(key);
     if (cached && cached.length === foods.length) {
       foodEmb = cached.map(a => Float32Array.from(a));
     } else {
