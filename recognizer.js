@@ -170,8 +170,11 @@ function score(e) {
     const q = new Array(n).fill(0);
     head.idx.forEach((i, k) => { q[i] = hp[k]; });
     // 두 분포의 혼합: 헤드가 학습한 음식에 확신하면 zero-shot의 오답을 뒤집을 수 있음
-    const lam = head.mix;
-    p = p.map((v, i) => (1 - lam) * v + lam * q[i]);
+    // 학습한 음식(한식)일 가능성(zero-shot 기준)이 클수록 학습 결과를 더 믿음 → 양식·음료 사진을 한식으로 끌고 가지 않음
+    const covered = new Set(head.idx);
+    let m = 0; head.idx.forEach(i => { m += p[i]; });
+    const g = Math.sqrt(m), lam = 0.8;
+    p = p.map((v, i) => covered.has(i) ? (1 - lam) * v + lam * g * q[i] : v);
   }
   if (personal.length) {                                       // 개인 학습
     const pos = new Map(foodsRef.map((f, i) => [f.id, i]));
