@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>한식 인식 학습기</title>
+<style>
+:root{--bg:#FBF7F2;--card:#fff;--ink:#26211C;--sub:#6F665D;--line:#ECE4DA;--accent:#E8553D;--ok:#2F8F5B;--warn:#C2412D}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#171412;--card:#221E1B;--ink:#F2ECE6;--sub:#A89E94;--line:#36302B;--accent:#F06A51;--ok:#5CC08A;--warn:#F07A66}}
+:root[data-theme="dark"]{--bg:#171412;--card:#221E1B;--ink:#F2ECE6;--sub:#A89E94;--line:#36302B;--accent:#F06A51;--ok:#5CC08A;--warn:#F07A66}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-size:15px;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:24px;margin:0 0 4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
+.muted{color:var(--sub);font-size:13px}
+.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:700;font-size:15px;background:var(--accent);color:#fff;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.prog{height:8px;background:var(--line);border-radius:8px;overflow:hidden;margin:10px 0}
+.prog div{height:100%;background:var(--accent);width:0}
+.log{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(--bg);border-radius:10px;padding:10px;max-height:220px;overflow:auto;white-space:pre-wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;font-size:13px;max-height:260px;overflow:auto}
+.grid div{padding:4px 8px;border-radius:8px;background:var(--bg)}
+.grid .no{color:var(--warn)}
+.big{font-size:30px;font-weight:800}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+label{font-size:14px}
+input[type=number]{width:80px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
+</style>
+</head>
+<body><div class="wrap">
+<h1>🍲 한식 인식 학습기</h1>
+<div class="muted">AI Hub 「한국 이미지(음식)」 사진으로 한끼코치의 한식 인식 정확도를 높입니다. 모든 계산은 이 PC 안에서 이루어지고, 사진은 어디에도 업로드되지 않아요. 사용료 0원.</div>
+
+<div class="card">
+  <b>1. 데이터 폴더 선택</b>
+  <p class="muted" style="margin:4px 0 10px">AI Hub에서 받은 zip을 압축 해제한 최상위 폴더(예: <code>kfood</code>)를 고르세요. 폴더 이름이 음식 이름(예: 김치찌개)인 구조를 자동으로 인식합니다.</p>
+  <div class="row">
+    <input type="file" id="dir" webkitdirectory directory multiple>
+    <label>음식당 학습 사진 수 <input type="number" id="per" value="120" min="20" max="600"></label>
+  </div>
+  <div id="scan" class="muted" style="margin-top:8px"></div>
+  <div class="grid" id="classes" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <b>2. 학습 실행</b>
+  <p class="muted" style="margin:4px 0 10px">PC 성능에 따라 10~40분 걸려요. 창을 닫지 말고 그대로 두세요.</p>
+  <button class="btn" id="go" disabled>학습 시작</button>
+  <div class="prog"><div id="bar"></div></div>
+  <div id="stage" class="muted"></div>
+  <div class="log" id="log"></div>
+</div>
+
+<div class="card">
+  <b>음식 설명 임베딩 만들기 (데이터 없이도 가능)</b>
+  <p class="muted" style="margin:4px 0 10px">폰이 처음 실행될 때 43MB짜리 텍스트 모델을 받지 않도록, 음식 목록을 미리 계산해 둡니다. 1~2분 걸려요.</p>
+  <button class="btn ghost" id="embBtn">food-emb.json 만들기</button> <span class="muted" id="embSt"></span>
+</div>
+
+<div class="card" id="resultCard" hidden>
+  <b>3. 결과</b>
+  <div id="result"></div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn" id="dl">학습 결과 저장</button>
+    <span class="muted">food-head.json, food-emb.json 두 파일이 저장돼요. 앱 폴더(index.html 옆)에 넣으면 폰 앱이 자동으로 사용해요.</span>
+  </div>
+</div>
+</div>
+
+<script src="foods.js"></script>
+<script type="module">
+import * as R from './recognizer.js';
+const FOODS = window.FOODS;
+const $ = s => document.querySelector(s);
+const log = m => { const l = $('#log'); l.textContent += m + '\n'; l.scrollTop = 1e9; };
+const n = s => s.normalize('NFC').replace(/[\s_\-()·.]/g, '').toLowerCase();
+
+// AI Hub 폴더명 ↔ 앱 음식 매칭: 이름·별칭이 정확히 같을 때만 자동 연결, 비슷한 이름은 '확인 필요'로 표시
+const nameIdx = [];
+for (const f of FOODS) for (const nm of [f.name, ...(f.aliases || [])]) nameIdx.push([n(nm), f.id]);
+const MANUAL = { '쌀밥': 'rice', '공기밥': 'rice', '흰밥': 'rice', '현미밥': 'brown_rice', '잡곡밥': 'multigrain_rice', '배추김치': 'baechu_kimchi', '깍두기': 'kkakdugi',
+  '후라이드치킨': 'fried_chicken_half', '양념치킨': 'yangnyeom_chicken_half', '삼겹살': 'samgyeopsal_gui', '갈비구이': 'la_galbi', '떡갈비': null, '물냉면': 'mul_naengmyeon', '비빔냉면': 'bibim_naengmyeon',
+  '짜장면': 'jjajangmyeon', '짬뽕': 'jjamppong', '김밥': 'gimbap', '라면': 'ramen', '떡볶이': 'tteokbokki', '잡채': 'japchae', '계란말이': 'rolled_omelette', '계란후라이': 'fried_eggs_two',
+  '고등어구이': 'godeungeo_gui', '갈치조림': 'galchi_jorim', '해물파전': 'seafood_pajeon', '김치전': 'kimchi_pancake', '동그랑땡': 'donggeurangttaeng', '순대': 'sundae', '족발': 'jokbal', '보쌈': 'bossam' };
+const exists = id => FOODS.some(f => f.id === id);
+function matchFood(folder) {
+  const k = n(folder);
+  if (folder in MANUAL) return MANUAL[folder] && exists(MANUAL[folder]) ? { id: MANUAL[folder], sure: true } : null;
+  const hit = nameIdx.find(([nm]) => nm === k); if (hit) return { id: hit[1], sure: true };
+  const near = nameIdx.filter(([nm]) => nm.length >= 2 && (k.includes(nm) || nm.includes(k))).sort((a, b) => b[0].length - a[0].length)[0];
+  return near ? { id: near[1], sure: false } : null;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+let groups = new Map(); // foodId -> File[]
+let folders = [];       // [{folder, files, id, sure, use}]
+function rebuildGroups() {
+  groups = new Map();
+  for (const o of folders) if (o.id && o.use) { if (!groups.has(o.id)) groups.set(o.id, []); groups.get(o.id).push(...o.files); }
+  const skipped = folders.filter(o => !o.use).length;
+  $('#scan').textContent = `사진 ${folders.reduce((a, o) => a + o.files.length, 0).toLocaleString()}장 · 폴더 ${folders.length}개 · 학습에 쓸 음식 ${groups.size}종${skipped ? ` · 제외 ${skipped}개` : ''}`;
+  $('#go').disabled = groups.size < 2;
+}
+$('#dir').onchange = () => {
+  const files = [...$('#dir').files].filter(f => /\.(jpe?g|png|webp|bmp)$/i.test(f.name));
+  const byFolder = new Map();
+  for (const f of files) {
+    const parts = f.webkitRelativePath.split('/');
+    const folder = parts[parts.length - 2];
+    if (!byFolder.has(folder)) byFolder.set(folder, []);
+    byFolder.get(folder).push(f);
+  }
+  folders = [...byFolder].sort().map(([folder, fs]) => { const m = matchFood(folder); return { folder, files: fs, id: m?.id || null, sure: !!m?.sure, use: !!m?.sure }; });
+  $('#classes').innerHTML = folders.map((o, i) => o.id
+    ? `<div class="${o.sure ? '' : 'no'}"><label><input type="checkbox" data-f="${i}" ${o.use ? 'checked' : ''}> ${esc(o.folder)} → ${esc(FOODS.find(x => x.id === o.id).name)}${o.sure ? '' : ' (확인 필요)'} (${o.files.length})</label></div>`
+    : `<div class="no">— ${esc(o.folder)} (${o.files.length}) 앱에 없음</div>`).join('');
+  rebuildGroups();
+};
+$('#classes').addEventListener('change', e => { const i = e.target.dataset.f; if (i == null) return; folders[+i].use = e.target.checked; rebuildGroups(); });
+
+function shuffle(a, seed = 7) { let s = seed; for (let i = a.length - 1; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+async function fileToBlob(file) {
+  const bmp = await createImageBitmap(file);
+  const s = Math.min(bmp.width, bmp.height);
+  const c = new OffscreenCanvas(256, 256);
+  c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 256, 256);
+  bmp.close?.();
+  return await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
+}
+
+// 소프트맥스 회귀 (Adam, L2) — 임베딩 위에 얹는 작은 분류기
+function train(X, Y, C, D, { epochs = 120, lr = 0.01, l2 = 1e-4, onEpoch } = {}) {
+  const W = Array.from({ length: C }, () => new Float32Array(D)); const b = new Float32Array(C);
+  const mW = W.map(() => new Float32Array(D)), vW = W.map(() => new Float32Array(D)); const mb = new Float32Array(C), vb = new Float32Array(C);
+  const B = 64, b1 = 0.9, b2 = 0.999; let t = 0;
+  const idx = X.map((_, i) => i);
+  const logits = new Float32Array(C);
+  for (let ep = 0; ep < epochs; ep++) {
+    shuffle(idx, ep + 11);
+    for (let s = 0; s < idx.length; s += B) {
+      const gW = W.map(() => new Float32Array(D)), gb = new Float32Array(C);
+      const batch = idx.slice(s, s + B);
+      for (const i of batch) {
+        const x = X[i];
+        let m = -1e9;
+        for (let c = 0; c < C; c++) { let z = b[c]; const w = W[c]; for (let d = 0; d < D; d++) z += w[d] * x[d]; logits[c] = z * 30; if (logits[c] > m) m = logits[c]; }
+        let Z = 0; for (let c = 0; c < C; c++) { logits[c] = Math.exp(logits[c] - m); Z += logits[c]; }
+        for (let c = 0; c < C; c++) {
+          const g = 30 * (logits[c] / Z - (c === Y[i] ? 1 : 0)) / batch.length;
+          if (Math.abs(g) < 1e-7) continue;
+          gb[c] += g; const gw = gW[c]; for (let d = 0; d < D; d++) gw[d] += g * x[d];
+        }
+      }
+      t++;
+      const c1 = 1 - b1 ** t, c2 = 1 - b2 ** t;
+      for (let c = 0; c < C; c++) {
+        const w = W[c], gw = gW[c], m1 = mW[c], v1 = vW[c];
+        for (let d = 0; d < D; d++) { const g = gw[d] + l2 * w[d]; m1[d] = b1 * m1[d] + (1 - b1) * g; v1[d] = b2 * v1[d] + (1 - b2) * g * g; w[d] -= lr * (m1[d] / c1) / (Math.sqrt(v1[d] / c2) + 1e-8); }
+        mb[c] = b1 * mb[c] + (1 - b1) * gb[c]; vb[c] = b2 * vb[c] + (1 - b2) * gb[c] * gb[c]; b[c] -= lr * (mb[c] / c1) / (Math.sqrt(vb[c] / c2) + 1e-8);
+      }
+    }
+    onEpoch?.(ep);
+  }
+  // 학습 시 logit 배율 30을 가중치에 반영
+  return { W: W.map(w => w.map(v => v * 30)), b: Array.from(b, v => v * 30) };
+}
+const predict = (h, x) => { let best = -1e9, bi = 0; h.W.forEach((w, c) => { let z = h.b[c]; for (let d = 0; d < x.length; d++) z += w[d] * x[d]; if (z > best) { best = z; bi = c; } }); return bi; };
+
+let output = null;
+$('#go').onclick = async () => {
+  $('#go').disabled = true; $('#dir').disabled = true;
+  const per = Math.max(20, Math.min(600, +$('#per').value || 120));
+  const setBar = p => $('#bar').style.width = (p * 100).toFixed(1) + '%';
+  try {
+    $('#stage').textContent = 'AI 모델 준비 중…';
+    await R.loadVision(p => { if (p.status === 'progress' && p.total) $('#stage').textContent = `모델 내려받는 중 ${p.file} ${Math.round(100 * p.loaded / p.total)}%`; });
+    log('모델 준비 완료: ' + R.MODEL_ID);
+    const classes = [...groups.keys()];
+    const jobs = [];
+    classes.forEach((id, c) => shuffle(groups.get(id).slice(), c + 3).slice(0, per).forEach(f => jobs.push([f, c])));
+    log(`학습 대상 ${classes.length}종, 사진 ${jobs.length}장`);
+    const X = [], Y = [];
+    const t0 = performance.now(); let fail = 0;
+    for (let i = 0; i < jobs.length; i++) {
+      const [f, c] = jobs[i];
+      try { X.push(await R.embedImage(await fileToBlob(f))); Y.push(c); } catch { fail++; }
+      if (i % 10 === 0) {
+        const el = (performance.now() - t0) / 1000, eta = el / (i + 1) * (jobs.length - i - 1);
+        $('#stage').textContent = `사진 특징 추출 ${i + 1}/${jobs.length} · 남은 시간 약 ${Math.ceil(eta / 60)}분`;
+        setBar(0.85 * (i + 1) / jobs.length);
+      }
+    }
+    if (fail) log(`읽지 못한 사진 ${fail}장은 건너뜀`);
+    // 학습/검증 분리 (음식별 15% 검증)
+    const tr = [], va = [];
+    const cnt = {};
+    X.forEach((_, i) => { cnt[Y[i]] = (cnt[Y[i]] || 0) + 1; (cnt[Y[i]] % 7 === 0 ? va : tr).push(i); });
+    $('#stage').textContent = '분류기 학습 중…';
+    await new Promise(r => setTimeout(r, 30));
+    const D = X[0].length, C = classes.length;
+    const head = train(tr.map(i => X[i]), tr.map(i => Y[i]), C, D, { epochs: 80, onEpoch: ep => { setBar(0.85 + 0.12 * ep / 80); } });
+    // 검증 정확도: 학습 헤드 vs zero-shot
+    $('#stage').textContent = '정확도 검사 중…';
+    const fIdx = classes.map(id => FOODS.findIndex(f => f.id === id));
+    const textEmb = await makeEmb().catch(() => null);
+    let okH = 0, okZ = 0;
+    for (const i of va) {
+      if (predict(head, X[i]) === Y[i]) okH++;
+      if (textEmb) { let best = -1e9, bi = -1; fIdx.forEach((k, c) => { const t = textEmb[k]; let s = 0; for (let d = 0; d < D; d++) s += t[d] * X[i][d]; if (s > best) { best = s; bi = c; } }); if (bi === Y[i]) okZ++; }
+    }
+    setBar(1);
+    const accH = okH / va.length, accZ = textEmb ? okZ / va.length : null;
+    log(`검증 사진 ${va.length}장 — 학습 후 정확도 ${(accH * 100).toFixed(1)}%${accZ != null ? `, 학습 전(zero-shot) ${(accZ * 100).toFixed(1)}%` : ''}`);
+    // 최종 헤드는 전체 데이터로 다시 학습
+    $('#stage').textContent = '전체 데이터로 최종 학습 중…';
+    await new Promise(r => setTimeout(r, 30));
+    const final = train(X, Y, C, D, { epochs: 80 });
+    output = JSON.stringify({ model: R.MODEL_ID, classes, T: 1, mix: 0.7, acc: +accH.toFixed(4), zeroShotAcc: accZ != null ? +accZ.toFixed(4) : null, created: new Date().toISOString(),
+      W: final.W.map(w => Array.from(w, v => +v.toFixed(4))), b: final.b.map(v => +v.toFixed(4)) });
+    $('#stage').textContent = '완료!';
+    $('#result').innerHTML = `<div class="row" style="gap:28px;margin:8px 0">
+      ${accZ != null ? `<div><div class="muted">학습 전 (같은 음식 중)</div><div class="big">${(accZ * 100).toFixed(0)}%</div></div><div class="big">→</div>` : ''}
+      <div><div class="muted">학습 후 (1순위 정답률)</div><div class="big" style="color:var(--ok)">${(accH * 100).toFixed(0)}%</div></div></div>
+      <div class="muted">학습한 음식 ${C}종 · 사진 ${X.length.toLocaleString()}장 · 파일 크기 약 ${(output.length / 1048576).toFixed(1)}MB</div>`;
+    $('#resultCard').hidden = false;
+  } catch (e) { console.error(e); log('오류: ' + (e.message || e)); $('#stage').textContent = '오류가 발생했어요. 아래 내용을 알려주세요.'; }
+};
+let embOut = null;
+async function makeEmb() {
+  const emb = await R.computeTextEmb(FOODS);
+  embOut = JSON.stringify({ hash: R.hashFoods(FOODS), emb: emb.map(a => Array.from(a, x => +x.toFixed(5))) });
+  return emb;
+}
+function save(name, text) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); }
+$('#embBtn').onclick = async () => {
+  $('#embBtn').disabled = true; $('#embSt').textContent = '계산 중…';
+  try { await makeEmb(); save('food-emb.json', embOut); $('#embSt').textContent = '저장 완료 — 앱 폴더에 넣어주세요'; }
+  catch (e) { $('#embSt').textContent = '오류: ' + e.message; }
+  $('#embBtn').disabled = false;
+};
+$('#dl').onclick = () => {
+  if (embOut) save('food-emb.json', embOut);
+  setTimeout(() => save('food-head.json', output), 400);
+};
+</script>
+</body>
+</html>

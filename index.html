@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>한끼코치</title>
+<meta name="description" content="사진 한 장으로 칼로리 분석과 맞춤 식단 컨설팅 — 폰 안에서 무료로 동작">
+<meta name="theme-color" content="#E8553D">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#FBF7F2; --card:#FFFFFF; --ink:#26211C; --sub:#6F665D; --line:#ECE4DA;
+  --accent:#E8553D; --accent-ink:#fff; --accent-soft:#FDE9E4;
+  --lose:#2F8F5B; --lose-soft:#E3F3EA; --gain:#C77A12; --gain-soft:#FBF0DC;
+  --sauce:#B4532A; --sauce-soft:#F8E6DC; --warn:#C2412D;
+  --c:#E0A33A; --p:#3C8DBC; --f:#D9694E;
+  --r:16px; --shadow:0 1px 2px rgba(60,40,20,.06),0 4px 16px rgba(60,40,20,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#171412; --card:#221E1B; --ink:#F2ECE6; --sub:#A89E94; --line:#36302B;
+    --accent:#F06A51; --accent-soft:#3A2420; --lose:#5CC08A; --lose-soft:#1D3127;
+    --gain:#E4A445; --gain-soft:#362A16; --sauce:#E08A5E; --sauce-soft:#3A2619; --warn:#F07A66;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171412; --card:#221E1B; --ink:#F2ECE6; --sub:#A89E94; --line:#36302B;
+  --accent:#F06A51; --accent-soft:#3A2420; --lose:#5CC08A; --lose-soft:#1D3127;
+  --gain:#E4A445; --gain-soft:#362A16; --sauce:#E08A5E; --sauce-soft:#3A2619; --warn:#F07A66;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;line-height:1.5}
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--ink)}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 0 8px}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.3px}
+.brand span{color:var(--accent)}
+.pill{font-size:12px;color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin:12px 0}
+h2{font-size:17px;margin:0 0 10px;letter-spacing:-.2px}
+h3{font-size:15px;margin:14px 0 8px}
+.muted{color:var(--sub);font-size:13px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.grow{flex:1}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;background:var(--line);}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.small{padding:7px 12px;font-size:13px;border-radius:10px}
+.btn:disabled{opacity:.5}
+.big-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.big-actions .btn.primary{grid-column:1/-1;padding:18px;font-size:17px;display:flex;align-items:center;justify-content:center;gap:8px}
+/* ring */
+.ring-wrap{display:flex;align-items:center;gap:18px}
+.ring{position:relative;width:128px;height:128px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .num{font-size:24px;font-weight:800;letter-spacing:-.5px}
+.macro-bars{flex:1;display:flex;flex-direction:column;gap:8px}
+.mbar .lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--sub)}
+.mbar .track{height:7px;border-radius:9px;background:var(--line);overflow:hidden}
+.mbar .fill{height:100%;border-radius:9px}
+/* meal list */
+.meal{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.meal:first-child{border-top:0}
+.thumb{width:52px;height:52px;border-radius:12px;object-fit:cover;background:var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-size:22px}
+.meal .t{font-weight:700}
+.meal .k{font-weight:800;white-space:nowrap}
+.x{border:0;background:none;color:var(--sub);font-size:18px;padding:4px 8px}
+/* analysis */
+.photo{width:100%;max-height:320px;object-fit:cover;border-radius:var(--r);display:block;background:var(--line)}
+.status{display:flex;align-items:center;gap:10px;font-size:14px}
+.spin{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.prog{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+.prog>div{height:100%;background:var(--accent);width:0;transition:width .2s}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:7px 12px;font-size:14px;display:inline-flex;align-items:center;gap:6px}
+.chip .pct{font-size:12px;color:var(--sub)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.on .pct{color:#ffe5df}
+.search{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.results{margin-top:6px}
+.res{display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.item-name{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.kcal-big{font-size:26px;font-weight:800;color:var(--accent);white-space:nowrap;letter-spacing:-.5px}
+.kcal-big small{font-size:13px;color:var(--sub);font-weight:600}
+.portion{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+.portion button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:6px 10px;font-size:13px}
+.portion button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.slider{width:100%;accent-color:var(--accent)}
+.ing{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.ing:last-child{border-bottom:0}
+.ing input{width:18px;height:18px;accent-color:var(--accent)}
+.ing .nm{flex:1}
+.ing .g{color:var(--sub);font-size:12px;width:52px;text-align:right}
+.ing .kc{width:64px;text-align:right;font-weight:700}
+.ing.off .nm,.ing.off .kc{text-decoration:line-through;color:var(--sub)}
+.tag{font-size:11px;border-radius:6px;padding:1px 6px;font-weight:700}
+.tag.sauce{background:var(--sauce-soft);color:var(--sauce)}
+.tag.side{background:var(--lose-soft);color:var(--lose)}
+.sauce-box{background:var(--sauce-soft);color:var(--sauce);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px}
+.macros{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.macros div{background:var(--bg);border-radius:10px;padding:8px;text-align:center}
+.macros b{display:block;font-size:15px}
+.macros span{font-size:11px;color:var(--sub)}
+.tabs{display:flex;gap:6px;margin:14px 0 8px;background:var(--bg);padding:4px;border-radius:12px}
+.tabs button{flex:1;border:0;background:none;padding:8px 2px;white-space:nowrap;border-radius:9px;font-size:13px;font-weight:700;color:var(--sub)}
+.tabs button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.tip{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;margin:6px 0;border:1px solid var(--line)}
+.tip.lose.applied{background:var(--lose-soft);border-color:var(--lose)}
+.tip.gain.applied{background:var(--gain-soft);border-color:var(--gain)}
+.tip .d{font-weight:800;white-space:nowrap}
+.tip.lose .d{color:var(--lose)} .tip.gain .d{color:var(--gain)}
+.tip .taste{font-size:12px;color:var(--sub)}
+.tip input{margin-top:3px;width:18px;height:18px;flex:none}
+.tip.lose input{accent-color:var(--lose)} .tip.gain input{accent-color:var(--gain)}
+.alt{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg);margin:6px 0;align-items:center}
+.alt .why{font-size:12px;color:var(--sub)}
+.recipe{background:var(--bg);border-radius:12px;padding:12px;margin-top:6px}
+.recipe ol{margin:6px 0 0;padding-left:20px}
+.recipe ul{margin:6px 0;padding-left:18px;columns:2;font-size:13px}
+details>summary{cursor:pointer;font-weight:700;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:" ▾";color:var(--sub)}
+details[open]>summary::after{content:" ▴"}
+.total-card{background:var(--ink);color:var(--bg)}
+.total-card .muted{color:inherit;opacity:.7}
+.total-num{font-size:34px;font-weight:800;letter-spacing:-1px}
+.verdict{border-radius:12px;padding:10px 12px;margin-top:8px;font-size:14px;background:rgba(255,255,255,.08)}
+.sticky-save{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.sticky-save .wrap{display:flex;gap:8px;padding:0}
+.sticky-save select{border:1px solid var(--line);border-radius:12px;padding:0 10px;background:var(--bg)}
+nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.bottom .wrap{display:flex}
+nav.bottom button{flex:1;border:0;background:none;padding:10px 0 8px;font-size:12px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.bottom button .ic{font-size:20px;line-height:1}
+nav.bottom button.on{color:var(--accent);font-weight:700}
+.hidden{display:none!important}
+.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub)}
+.form label.full{grid-column:1/-1}
+.form input,.form select{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px;font-weight:700}
+.seg button.on[data-v="lose"]{background:var(--lose-soft);border-color:var(--lose);color:var(--lose)}
+.seg button.on[data-v="keep"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.seg button.on[data-v="gain"]{background:var(--gain-soft);border-color:var(--gain);color:var(--gain)}
+.seg button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stat3 div{background:var(--bg);border-radius:12px;padding:10px 4px}
+.stat3 b{display:block;font-size:18px}
+.stat3 span{font-size:11px;color:var(--sub)}
+.week{margin-top:6px}
+.week .plot{display:flex;align-items:flex-end;gap:6px;height:130px;position:relative;margin-top:16px}
+.week .days{display:flex;gap:6px;margin-top:4px}
+.week .days .d{flex:1;text-align:center}
+.week .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px;position:relative}
+.week .bar{width:100%;max-width:34px;border-radius:8px 8px 3px 3px;background:var(--accent);min-height:2px}
+.week .bar.over{background:var(--warn)}
+.week .d{font-size:11px;color:var(--sub)}
+.week .v{font-size:10px;color:var(--sub)}
+.week .goal{position:absolute;left:0;right:0;border-top:2px dashed var(--sub);opacity:.6;z-index:1;pointer-events:none}
+.week .goal span{position:absolute;right:0;top:-16px;font-size:10px;color:var(--sub)}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.empty{text-align:center;color:var(--sub);padding:18px 0}
+.note{font-size:12px;color:var(--sub);margin-top:6px}
+.addrice{background:var(--accent-soft);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand">한끼<span>코치</span></div>
+  <div class="pill" id="goalPill">목표 설정 전</div>
+</div></header>
+
+<main class="wrap">
+  <!-- 홈 -->
+  <section id="view-home">
+    <div class="card">
+      <div class="row between"><h2>오늘</h2><span class="muted" id="todayLbl"></span></div>
+      <div class="ring-wrap">
+        <div class="ring">
+          <svg width="128" height="128" viewBox="0 0 128 128">
+            <circle cx="64" cy="64" r="54" fill="none" stroke="var(--line)" stroke-width="12"/>
+            <circle id="ringArc" cx="64" cy="64" r="54" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="339.3" stroke-dashoffset="339.3"/>
+          </svg>
+          <div class="center"><div class="num" id="ringNum">0</div><div class="muted" id="ringSub">/ 0 kcal</div></div>
+        </div>
+        <div class="macro-bars" id="macroBars"></div>
+      </div>
+      <div class="big-actions">
+        <button class="btn primary" id="btnCamera">📷 음식 사진 찍기</button>
+        <button class="btn ghost" id="btnAlbum">🖼 앨범에서 선택</button>
+        <button class="btn ghost" id="btnSearch">🔍 직접 검색</button>
+      </div>
+      <input type="file" accept="image/*" capture="environment" id="fileCam" class="hidden">
+      <input type="file" accept="image/*" id="fileAlbum" class="hidden">
+    </div>
+    <div class="card">
+      <h2>오늘 먹은 것</h2>
+      <div id="todayMeals"></div>
+    </div>
+  </section>
+
+  <!-- 분석 -->
+  <section id="view-analyze" class="hidden">
+    <div class="row" style="margin-top:6px"><button class="btn small ghost" id="backHome">← 홈</button></div>
+    <div class="card" id="photoCard">
+      <img class="photo" id="photo" alt="촬영한 음식 사진">
+      <div id="aiStatus" style="margin-top:12px"></div>
+      <div id="candBox" class="hidden">
+        <h3>사진 속 음식 <span class="muted">— 맞는 것을 모두 눌러주세요</span></h3>
+        <div class="chips" id="cands"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">음식 추가 · 직접 찾기</h3>
+      <input class="search" id="q" placeholder="예: 김치찌개, 라떼, 삼겹살" autocomplete="off">
+      <div class="results" id="qres"></div>
+    </div>
+    <div id="items"></div>
+    <div id="totalBox"></div>
+    <div style="height:70px"></div>
+  </section>
+
+  <!-- 기록 -->
+  <section id="view-log" class="hidden">
+    <div class="card">
+      <h2>최근 7일</h2>
+      <div class="week" id="week"></div>
+      <div class="stat3" style="margin-top:14px" id="weekStats"></div>
+    </div>
+    <div id="logDays"></div>
+    <div class="card">
+      <h2>데이터 백업</h2>
+      <p class="muted" style="margin-top:0">기록은 이 폰 안에만 저장돼요. 폰을 바꿀 때는 백업 파일로 옮기세요.</p>
+      <div class="row"><button class="btn small ghost" id="btnExport">백업 파일 저장</button>
+      <label class="btn small ghost" style="display:inline-block">불러오기<input type="file" accept="application/json" id="fileImport" class="hidden"></label></div>
+    </div>
+  </section>
+
+  <!-- 목표 -->
+  <section id="view-goal" class="hidden">
+    <div class="card">
+      <h2>내 목표</h2>
+      <div class="seg" id="goalSeg">
+        <button data-v="lose">체중 감량</button><button data-v="keep">유지</button><button data-v="gain">체중 증가</button>
+      </div>
+      <div class="form" style="margin-top:14px">
+        <label>성별<select id="pSex"><option value="m">남성</option><option value="f">여성</option></select></label>
+        <label>나이<input id="pAge" type="number" inputmode="numeric" min="14" max="100" placeholder="35"></label>
+        <label>키 (cm)<input id="pH" type="number" inputmode="decimal" placeholder="170"></label>
+        <label>현재 체중 (kg)<input id="pW" type="number" inputmode="decimal" placeholder="70"></label>
+        <label>목표 체중 (kg)<input id="pT" type="number" inputmode="decimal" placeholder="65"></label>
+        <label>속도 (주당)<select id="pRate"><option value="0.25">0.25kg (천천히)</option><option value="0.5" selected>0.5kg (권장)</option><option value="0.75">0.75kg (빠르게)</option></select></label>
+        <label class="full">활동량<select id="pAct">
+          <option value="1.2">거의 안 움직임 (사무직, 운동 X)</option>
+          <option value="1.375" selected>가벼운 활동 (주 1~3회 운동)</option>
+          <option value="1.55">보통 활동 (주 3~5회 운동)</option>
+          <option value="1.725">많은 활동 (매일 운동·육체노동)</option>
+        </select></label>
+      </div>
+      <button class="btn primary" style="width:100%;margin-top:14px" id="btnSaveGoal">목표 저장</button>
+    </div>
+    <div class="card" id="goalResult"></div>
+    <div class="card">
+      <h2>앱 정보</h2>
+      <p class="muted" style="margin:0">음식 인식은 폰 안에서 무료 AI 모델(MobileCLIP)로 처리돼요. 사진은 외부로 전송되지 않고, 사용료가 들지 않습니다. 처음 한 번만 모델(약 50MB, 와이파이 권장)을 내려받고, 이후엔 저장된 모델을 씁니다.<br>칼로리는 식약처 식품영양성분 DB와 일반적인 1인분 기준의 추정값이에요. 질환이 있거나 식이 제한이 필요하면 전문가와 상담하세요.</p>
+      <div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn small ghost" id="btnTheme">화면 테마 전환</button><button class="btn small ghost" id="btnForget">개인 학습 초기화</button><span class="muted" id="dbInfo"></span></div>
+    </div>
+  </section>
+</main>
+
+<div class="sticky-save hidden" id="saveBar"><div class="wrap">
+  <select id="mealType"><option>아침</option><option>점심</option><option>저녁</option><option>간식</option></select>
+  <button class="btn primary grow" id="btnSave">기록하기</button>
+</div></div>
+
+<nav class="bottom" id="nav"><div class="wrap">
+  <button data-v="home" class="on"><span class="ic">🍽</span>오늘</button>
+  <button data-v="camera"><span class="ic">📷</span>촬영</button>
+  <button data-v="log"><span class="ic">📊</span>기록</button>
+  <button data-v="goal"><span class="ic">🎯</span>목표</button>
+</div></nav>
+<div class="toast" id="toast"></div>
+
+<script src="foods.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
