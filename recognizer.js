@@ -112,6 +112,10 @@ export async function load(foods, cbIn = null) {
       if (r.ok) {
         const j = await r.json();
         if (j.model && j.model !== MODEL_ID) throw new Error('head model mismatch');
+        if (j.Wq) { // 8비트 압축 가중치 해제
+          const bin = atob(j.Wq), D = j.dim; j.W = [];
+          for (let c = 0; c < j.classes.length; c++) { const row = new Array(D); for (let d = 0; d < D; d++) row[d] = ((bin.charCodeAt(c * D + d) << 24) >> 24) * j.Ws[c]; j.W.push(row); }
+        }
         if (!Array.isArray(j.W) || !j.W.length || j.W[0].length !== foodEmb[0].length) throw new Error('head dim mismatch');
         const pos = new Map(foods.map((f, i) => [f.id, i]));
         const keep = j.classes.map((id, k) => [pos.get(id), k]).filter(([i]) => i !== undefined);

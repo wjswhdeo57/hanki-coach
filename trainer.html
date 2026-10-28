@@ -38,7 +38,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:6px;borde
   <p class="muted" style="margin:4px 0 10px">AI Hub에서 받은 zip을 압축 해제한 최상위 폴더(예: <code>kfood</code>)를 고르세요. 폴더 이름이 음식 이름(예: 김치찌개)인 구조를 자동으로 인식합니다.</p>
   <div class="row">
     <input type="file" id="dir" webkitdirectory directory multiple>
-    <label>음식당 학습 사진 수 <input type="number" id="per" value="120" min="20" max="600"></label>
+    <label>음식당 학습 사진 수 <input type="number" id="per" value="60" min="20" max="600"></label>
   </div>
   <div id="scan" class="muted" style="margin-top:8px"></div>
   <div class="grid" id="classes" style="margin-top:8px"></div>
@@ -188,6 +188,7 @@ $('#go').onclick = async () => {
       const [f, c] = jobs[i];
       try { X.push(await R.embedImage(await fileToBlob(f))); Y.push(c); } catch { fail++; }
       if (i % 10 === 0) {
+        window.__progress = { i: i + 1, n: jobs.length };
         const el = (performance.now() - t0) / 1000, eta = el / (i + 1) * (jobs.length - i - 1);
         $('#stage').textContent = `사진 특징 추출 ${i + 1}/${jobs.length} · 남은 시간 약 ${Math.ceil(eta / 60)}분`;
         setBar(0.85 * (i + 1) / jobs.length);
@@ -218,8 +219,13 @@ $('#go').onclick = async () => {
     $('#stage').textContent = '전체 데이터로 최종 학습 중…';
     await new Promise(r => setTimeout(r, 30));
     const final = train(X, Y, C, D, { epochs: 80 });
-    output = JSON.stringify({ model: R.MODEL_ID, classes, T: 1, mix: 0.7, acc: +accH.toFixed(4), zeroShotAcc: accZ != null ? +accZ.toFixed(4) : null, created: new Date().toISOString(),
-      W: final.W.map(w => Array.from(w, v => +v.toFixed(4))), b: final.b.map(v => +v.toFixed(4)) });
+    // 가중치는 행별 8비트로 압축 (파일 크기 ~1/6)
+    const Ws = final.W.map(w => Math.max(1e-6, ...Array.from(w, Math.abs)) / 127);
+    const q = new Int8Array(C * D); final.W.forEach((w, c) => w.forEach((v, d) => { q[c * D + d] = Math.round(v / Ws[c]); }));
+    let bin = ''; const u8 = new Uint8Array(q.buffer); for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+    output = JSON.stringify({ model: R.MODEL_ID, classes, T: 1, mix: 0.7, dim: D, acc: +accH.toFixed(4), zeroShotAcc: accZ != null ? +accZ.toFixed(4) : null,
+      nTrain: X.length, created: new Date().toISOString(), Ws: Ws.map(v => +v.toPrecision(5)), Wq: btoa(bin), b: final.b.map(v => +v.toFixed(4)) });
+    window.__result = output; window.__done = true;
     $('#stage').textContent = '완료!';
     $('#result').innerHTML = `<div class="row" style="gap:28px;margin:8px 0">
       ${accZ != null ? `<div><div class="muted">학습 전 (같은 음식 중)</div><div class="big">${(accZ * 100).toFixed(0)}%</div></div><div class="big">→</div>` : ''}
