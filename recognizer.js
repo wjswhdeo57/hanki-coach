@@ -39,6 +39,21 @@ function norm(v) { let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) ||
 function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
 function softmax(l) { const m = Math.max(...l); const e = l.map(x => Math.exp(x - m)); const z = e.reduce((a, b) => a + b, 0); return e.map(x => x / z); }
 
+// 8비트 압축 임베딩(base64) 해제
+export function decodeQ(j) {
+  if (!j.q || !j.dim) return null;
+  const bin = atob(j.q); const q = new Int8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) q[i] = (bin.charCodeAt(i) << 24) >> 24;
+  const out = [];
+  for (let i = 0; i < q.length / j.dim; i++) out.push(Array.from(norm(Array.from(q.subarray(i * j.dim, (i + 1) * j.dim), x => x / j.scale))));
+  return out;
+}
+export function encodeQ(vecs, scale = 225) {
+  const dim = vecs[0].length, q = new Int8Array(vecs.length * dim);
+  vecs.forEach((v, i) => v.forEach((x, k) => { q[i * dim + k] = Math.max(-127, Math.min(127, Math.round(x * scale))); }));
+  let s = ''; const u = new Uint8Array(q.buffer); for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+  return { dim, scale, q: btoa(s) };
+}
 export function isReady() { return !!(visionModel && foodEmb); }
 export function hasHead() { return !!head; }
 export function personalCount() { return personal.length; }
@@ -81,7 +96,7 @@ export async function load(foods, cbIn = null) {
     if (!cached) {
       try {
         const r = await fetch('food-emb.json', { cache: 'no-cache' });
-        if (r.ok) { const j = await r.json(); if (j.hash === hash) cached = j.emb; }
+        if (r.ok) { const j = await r.json(); if (j.hash === hash) cached = j.emb || decodeQ(j); }
       } catch {}
     }
     if (cached && cached.length === foods.length) {
@@ -216,6 +231,6 @@ export async function forgetPersonal() { personal = []; await kvSet('personal', 
 
 // 개발용: food-emb.json 생성
 export async function exportEmbeddings(foods) {
-  const emb = await computeTextEmb(foods);
-  return JSON.stringify({ hash: hashFoods(foods), emb: emb.map(a => Array.from(a, x => +x.toFixed(5))) });
+  const emb = foodEmb && foodEmb.length === foods.length ? foodEmb : await computeTextEmb(foods);
+  return JSON.stringify({ hash: hashFoods(foods), model: MODEL_ID, ...encodeQ(emb.map(a => Array.from(a))) });
 }
