@@ -112,18 +112,47 @@ async function zipImages(blob, prefix = '', depth = 0) {
     if (IMG.test(name)) out.push({ entry: e, path: name });
     else if (/\.zip$/i.test(name) && depth < 1) {
       $('#scan').textContent = `안쪽 압축 파일 여는 중: ${name}`;
-      const inner = await e.getData(new zip.BlobWriter());
+      let inner;
+      if (e.compressionMethod === 0 && !e.encrypted) {
+        // 압축 없이 저장된 안쪽 zip은 메모리에 올리지 않고 바깥 파일에서 그 구간만 잘라 씀
+        const lh = new DataView(await blob.slice(e.offset, e.offset + 30).arrayBuffer());
+        const start = e.offset + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+        inner = blob.slice(start, start + e.compressedSize);
+      } else inner = await e.getData(new zip.BlobWriter());
       out.push(...await zipImages(inner, name.replace(/\.zip$/i, '') + '/', depth + 1));
     }
   }
   return out;
 }
+// AI Hub API 다운로드는 tar 안에 kfood.zip.part0, part1… 로 나뉘어 있음 → 복사 없이 이어 붙여 하나의 zip으로 봄
+async function unwrapTar(f) {
+  const head = new Uint8Array(await f.slice(0, 512).arrayBuffer());
+  if (new TextDecoder().decode(head.slice(257, 262)) !== 'ustar') return f;
+  const dec = new TextDecoder(); const items = []; let off = 0, longName = null;
+  while (off + 512 <= f.size) {
+    const h = new Uint8Array(await f.slice(off, off + 512).arrayBuffer());
+    if (h.every(x => x === 0)) break;
+    const str = (a, b) => dec.decode(h.slice(a, b)).replace(/\0.*$/s, '');
+    let name = str(0, 100); const prefix = str(345, 500); if (prefix) name = prefix + '/' + name;
+    const size = parseInt(str(124, 136).trim() || '0', 8); const type = String.fromCharCode(h[156] || 48);
+    const data = off + 512;
+    if (type === 'L') longName = dec.decode(new Uint8Array(await f.slice(data, data + size).arrayBuffer())).replace(/\0.*$/s, '');
+    else { if (longName) { name = longName; longName = null; } if (type === '0') items.push({ name, size, data }); }
+    off = data + Math.ceil(size / 512) * 512;
+  }
+  const parts = items.filter(i => /\.zip\.part\d+$/i.test(i.name)).sort((a, b) => +a.name.match(/(\d+)$/)[1] - +b.name.match(/(\d+)$/)[1]);
+  if (parts.length) { log(`tar 안의 분할 파일 ${parts.length}개를 이어 붙였어요`); return new File(parts.map(p => f.slice(p.data, p.data + p.size)), 'kfood.zip'); }
+  const one = items.find(i => /\.zip$/i.test(i.name));
+  if (one) return f.slice(one.data, one.data + one.size);
+  throw new Error('tar 안에 zip 파일이 없어요');
+}
 $('#zipf').onchange = async () => {
-  const f = $('#zipf').files[0]; if (!f) return;
+  let f = $('#zipf').files[0]; if (!f) return;
   $('#scan').textContent = `zip 목록 읽는 중… (${(f.size / 1073741824).toFixed(2)}GB)`;
   try {
     zip = zip || await import(ZIPJS);
     zip.configure({ useWebWorkers: false });
+    f = await unwrapTar(f);
     const imgs = await zipImages(f);
     const byFolder = new Map();
     for (const it of imgs) {
