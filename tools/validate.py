@@ -23,10 +23,11 @@ for f in files:
         m=x['macro']; mk=4*m['c']+4*m['p']+9*m['f']
         if kc>0 and abs(mk-kc)>0.15*kc+15: E(f'매크로 kcal {mk} vs 재료합 {kc}')
         if not any(i['t']=='sauce' for i in ing) and x['cat'] not in ('과일·간식','음료'): print(pre,'(경고) 양념 항목 없음')
-        if not (2<=len(x['lose'])<=4 and all(t['d']<0 for t in x['lose'])): E('lose 개수/부호')
-        if not (1<=len(x['gain'])<=4 and all(t['d']>0 for t in x['gain'])): E('gain 개수/부호')
+        tiny = kc < 5  # 물·차처럼 칼로리가 거의 없는 음료는 팁 생략 허용
+        if not tiny and not (2<=len(x['lose'])<=4 and all(t['d']<0 for t in x['lose'])): E('lose 개수/부호')
+        if not tiny and not (1<=len(x['gain'])<=4 and all(t['d']>0 for t in x['gain'])): E('gain 개수/부호')
         for s in ('lose','gain'):
-            if not x['alt'].get(s): E('alt.'+s+' 없음')
+            if not tiny and not x['alt'].get(s): E('alt.'+s+' 없음')
         r=x['recipe']
         if r is None:
             if kc>=80: E('recipe null은 80kcal 미만 음식만 허용')

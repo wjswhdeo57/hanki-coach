@@ -190,9 +190,15 @@ async function runAI(blob) {
     if (A !== myA) return; // 그 사이 다른 분석을 시작함
     A.emb = res.emb; A.cands = res;
     const top = res.main[0];
-    st.innerHTML = `<div class="muted">🔒 폰 안에서 분석했어요 (사진 전송 없음)${R.hasHead() ? ' · 한식 전용 학습 적용' : ''}${R.personalCount() ? ` · 개인 학습 ${R.personalCount()}장` : ''}</div>`;
+    const unsure = !top || top.p < 0.45 || res.topCos < 0.2;
+    A.unsure = unsure;
+    let warn = '';
+    if (res.notFood > 0.5) warn = `<div class="verdict-warn">🤔 음식이 아닌 사진 같아요 (빈 컵·빈 그릇·식탁 등). 음식이면 아래 후보에서 고르거나 직접 찾아주세요.</div>`;
+    else if (unsure) warn = `<div class="verdict-warn">🤔 확실하지 않아요. 아래 후보 중 맞는 것을 눌러주세요. 없으면 직접 찾아주세요.</div>`;
+    st.innerHTML = `${warn}<div class="muted">🔒 폰 안에서 분석했어요 (사진 전송 없음)${R.hasHead() ? ' · 한식 전용 학습 적용' : ''}${R.personalCount() ? ` · 개인 학습 ${R.personalCount()}장` : ''}</div>`;
     renderCands();
-    if (top && !A.items.length) { addItem(top.food.id, false); A.auto = top.food.id; }
+    // 확신할 때만 1순위를 자동으로 넣음
+    if (top && !A.items.length && !unsure && res.notFood <= 0.5) { addItem(top.food.id, false); A.auto = top.food.id; }
   } catch (err) {
     console.error(err);
     if (A !== myA) return;
@@ -203,7 +209,7 @@ function renderCands() {
   if (!A.cands) return;
   const sel = new Set(A.items.map(i => i.id));
   const chip = (c, label) => `<button class="chip ${sel.has(c.food.id) ? 'on' : ''}" data-cand="${esc(c.food.id)}">${esc(c.food.name)} <span class="pct">${label}</span></button>`;
-  let html = A.cands.main.map(c => chip(c, `${r0(c.p * 100)}%`)).join('');
+  let html = A.cands.main.map(c => chip(c, A.unsure ? '후보' : `${r0(c.p * 100)}%`)).join('');
   if (A.cands.extra.length) html += `<div class="muted" style="width:100%;margin-top:4px">사진 일부에서 발견 — 같이 있나요?</div>` + A.cands.extra.map(c => chip(c, '부분')).join('');
   $('#cands').innerHTML = html + `<div class="note" style="width:100%">목록에 없으면 아래에서 직접 찾아주세요. 고쳐주신 결과는 다음 인식에 반영돼요.</div>`;
   $('#candBox').classList.remove('hidden');

@@ -11,6 +11,16 @@ const TEMPLATES = [
   t => `a close-up photo of ${t} served on a table.`,
 ];
 const PERSONAL_MAX = 600;
+// 음식이 아닌 사진(빈 컵·빈 그릇·수저만 있는 식탁 등)을 걸러내기 위한 문장
+export const NONFOOD = [
+  'an empty plate or an empty bowl with nothing on it',
+  'an empty paper cup or an empty glass',
+  'a dining table with only spoons, chopsticks, napkins and no food',
+  "a person's face or a selfie",
+  'a document, a phone screen or printed text',
+  'a room, a street or a landscape with no food',
+];
+let nfEmb = null;
 
 let lib = null, processor = null, visionModel = null;
 let foodEmb = null;   // Float32Array[] 음식별 텍스트 임베딩
@@ -95,7 +105,11 @@ export async function load(foods, cbIn = null) {
     let cached = null;
     try {
       const r = await fetch('food-emb.json', { cache: 'no-cache' });
-      if (r.ok) { const j = await r.json(); if (j.hash === hash) cached = j.emb || decodeQ(j); }
+      if (r.ok) {
+        const j = await r.json();
+        if (j.hash === hash) cached = j.emb || decodeQ(j);
+        if (j.nf && j.nf.q) nfEmb = decodeQ({ ...j.nf, dim: j.dim, scale: j.scale }).map(a => Float32Array.from(a));
+      }
     } catch {}
     if (!cached) cached = await kvGet(key);
     if (cached && cached.length === foods.length) {
@@ -103,6 +117,7 @@ export async function load(foods, cbIn = null) {
     } else {
       onProgress({ pct: 86, msg: '음식 목록 학습 중 (처음 한 번만)…' });
       foodEmb = await computeTextEmb(foods, cb, (pct) => onProgress({ pct: 86 + Math.round(12 * pct), msg: '음식 목록 학습 중 (처음 한 번만)…' }));
+      if (!nfEmb) nfEmb = await computeTextEmb(NONFOOD.map((c, i) => ({ id: 'nf' + i, clip: c })), cb);
     }
     await kvSet(key, foodEmb.map(a => Array.from(a)));
 
@@ -206,6 +221,14 @@ export async function classify(blob, foods, onProgress = () => {}) {
   const s = Math.min(W, H);
   const fullEmb = await embedImage(await cropBlob(bitmap, (W - s) / 2, (H - s) / 2, s, s));
   const full = score(fullEmb);
+  // 음식이 아닐 확률: 음식 170여 종 + '음식 아님' 문장을 함께 비교
+  let notFood = 0;
+  if (nfEmb) {
+    const all = foodEmb.map(t => 100 * dot(t, fullEmb)).concat(nfEmb.map(t => 100 * dot(t, fullEmb)));
+    const sp = softmax(all);
+    for (let i = foodEmb.length; i < sp.length; i++) notFood += sp[i];
+  }
+  const topCos = Math.max(...foodEmb.map(t => dot(t, fullEmb)));
   const regions = [[0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5]].map(([x, y]) => [x * W, y * H, W / 2, H / 2]);
   const regionMax = new Array(foods.length).fill(0);
   const regionEmb = [];
@@ -222,7 +245,7 @@ export async function classify(blob, foods, onProgress = () => {}) {
   const main = idx.slice(0, 6).map(i => ({ food: foods[i], p: full[i] }));
   const extra = regionMax.map((p, i) => ({ i, p })).filter(o => o.p > 0.3 && !main.some(m => m.food === foods[o.i]))
     .sort((a, b) => b.p - a.p).slice(0, 4).map(o => ({ food: foods[o.i], p: o.p }));
-  return { main, extra, emb: Array.from(fullEmb) };
+  return { main, extra, emb: Array.from(fullEmb), notFood, topCos };
 }
 
 // 사용자가 확정한 음식을 기억 (개인 학습)
@@ -236,6 +259,11 @@ export async function learn(embArr, foodIds) {
 export async function forgetPersonal() { personal = []; await kvSet('personal', []); }
 
 // 개발용: food-emb.json 생성
+export async function exportNonfood() {
+  const e = await computeTextEmb(NONFOOD.map((c, i) => ({ id: 'nf' + i, clip: c })));
+  const q = encodeQ(e.map(a => Array.from(a)));
+  return { q: q.q, n: NONFOOD.length };
+}
 export async function exportEmbeddings(foods) {
   const emb = foodEmb && foodEmb.length === foods.length ? foodEmb : await computeTextEmb(foods);
   return JSON.stringify({ hash: hashFoods(foods), model: MODEL_ID, ...encodeQ(emb.map(a => Array.from(a))) });

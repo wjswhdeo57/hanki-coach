@@ -1,0 +1,14 @@
+[
+ {"id":"water","name":"물","aliases":["생수","정수","맹물","물 한 컵"],"clip":"a clear glass or paper cup of plain drinking water, transparent and colorless, nothing else in it","cat":"음료","serving":"1컵 (200ml)","grams":200,
+  "ingredients":[{"n":"물","g":200,"kcal":0,"t":"main"}],"macro":{"c":0,"p":0,"f":0},"na":0,"lose":[],"gain":[],
+  "alt":{"lose":[],"gain":[{"name":"우유","kcal":130,"why":"마시는 음료로 단백질·칼로리 보충"}]},"recipe":null},
+ {"id":"sparkling_water","name":"탄산수","aliases":["플레인 탄산수"],"clip":"a glass of clear sparkling water with many small bubbles, or a clear plastic bottle of carbonated water","cat":"음료","serving":"1캔 (350ml)","grams":350,
+  "ingredients":[{"n":"탄산수(무가당)","g":350,"kcal":0,"t":"main"}],"macro":{"c":0,"p":0,"f":0},"na":10,"lose":[],"gain":[],
+  "alt":{"lose":[],"gain":[{"name":"콜라(355ml)","kcal":150,"why":"같은 탄산 청량감, 당분 포함"}]},"recipe":null},
+ {"id":"barley_tea","name":"보리차","aliases":["옥수수차","결명자차","차"],"clip":"a cup of light amber brown barley tea, clear tea-colored liquid without milk","cat":"음료","serving":"1컵 (200ml)","grams":200,
+  "ingredients":[{"n":"보리차","g":200,"kcal":2,"t":"main"}],"macro":{"c":0.5,"p":0,"f":0},"na":2,"lose":[],"gain":[],
+  "alt":{"lose":[],"gain":[{"name":"식혜","kcal":150,"why":"곡물 향이 나는 달콤한 음료"}]},"recipe":null},
+ {"id":"green_tea","name":"녹차","aliases":["녹차 티백","현미녹차"],"clip":"a cup of pale yellow-green green tea, clear liquid, sometimes with a tea bag string","cat":"음료","serving":"1컵 (200ml)","grams":200,
+  "ingredients":[{"n":"녹차","g":200,"kcal":2,"t":"main"}],"macro":{"c":0.5,"p":0,"f":0},"na":2,"lose":[],"gain":[],
+  "alt":{"lose":[],"gain":[{"name":"녹차라떼","kcal":250,"why":"같은 녹차 향, 우유·시럽 추가"}]},"recipe":null}
+]
